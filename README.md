@@ -81,6 +81,13 @@ Embedded handler method "onRelationDropdownSearch" is used for AJAX requests for
 * [OctoberCMS Issue: Ajax options for backend dropdowns. #2722](https://github.com/octobercms/october/issues/2722) - Relation Dynamic Dropdown Form Widget simplifies approach described in this issue.
 * [Select2 Documentation](https://select2.org/)
 
+## Support
+
+Feel free to use any of the following support options (**Plese don't use Reviews to request for support.**):
+
+* [Plugin Support Forum](https://octobercms.com/plugin/support/euknyaz-relationdynamicdropdown)
+* [Github Issues](https://github.com/euknyaz/oc-relation-dynamic-dropdown-formwidget/issues)
+
 ## Versioning
 
 I use use [Github](http://github.com/) for versioning.
