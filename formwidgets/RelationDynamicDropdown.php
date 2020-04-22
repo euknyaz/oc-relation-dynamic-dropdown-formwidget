@@ -2,7 +2,9 @@
 
 namespace Euknyaz\RelationDynamicDropdown\FormWidgets;
 
-use DB;
+use Lang;
+use ApplicationException;
+use Illuminate\Support\Facades\DB;
 use Backend\FormWidgets\Relation;
 use October\Rain\Database\Relations\Relation as RelationBase;
 
@@ -33,6 +35,8 @@ use October\Rain\Database\Relations\Relation as RelationBase;
  */
 class RelationDynamicDropdown extends Relation
 {
+    protected $defaultAlias = 'relation';
+
     /**
      * @var int default limit of records to be displayed in search results
      */
@@ -66,18 +70,20 @@ class RelationDynamicDropdown extends Relation
     protected function makeRenderFormField()
     {
         list($model, $attribute) = $this->resolveModelAttribute($this->valueFrom);
-        $relationType = $model->getRelationType($attribute);
+        $relationType   = $model->getRelationType($attribute);
         $attributeValue = isset($model->{$attribute}) ? $model->{$attribute}->getKey() : null;
+        $valueFrom      = $this->valueFrom;
 
         // If relation widget has data-handler attribute, then render widget without quering database for options
         if (in_array($relationType, ['belongsTo', 'hasOne'])) {
             $formField = $this->formField;
-            return $this->renderFormField = RelationBase::noConstraints(function () use($formField, $model, $attribute, $relationType, $attributeValue) {
+            return $this->renderFormField = RelationBase::noConstraints(function () use($formField, $model, $attribute, $relationType, $attributeValue, $valueFrom) {
                 $field = clone $formField;
 
                 // CUSTOMIZATION: automatic data-handler and data-attributes configuration
                 $field->type = 'dropdown';
-                $field->attributes['field']['data-handler'] = 'onRelationDropdownSearch';
+                $field->attributes['field']['data-handler'] = "onRelationDropdownSearch";
+                $field->attributes['field']['data-request-data'] = "_attribute: '{$valueFrom}'";
                 $field->attributes['field']['data-minimum-input-length'] = $field->attributes['field']['data-minimum-input-length'] ?? self::DEFAULT_MIN_INPUT_LENGTH;
                 $field->attributes['field']['data-ajax--delay'] = $field->attributes['field']['data-ajax--delay'] ?? self::DEFAULT_AJAX_DELAY;
 
@@ -119,7 +125,7 @@ class RelationDynamicDropdown extends Relation
                 if ($this->sqlSelect) {
                     $nameFrom = 'selection';
                     $selectColumn = $usesTree ? '*' : $relationModel->getKeyName();
-                    $result = $query->select($selectColumn, Db::raw($this->sqlSelect . ' AS ' . $nameFrom));
+                    $result = $query->select($selectColumn, DB::raw($this->sqlSelect . ' AS ' . $nameFrom));
                 }
                 else {
                     $nameFrom = $this->nameFrom;
@@ -153,35 +159,53 @@ class RelationDynamicDropdown extends Relation
     public function onRelationDropdownSearch($recordId = null)
     {
         $searchQuery  = post('q');
+        $relationAttr = post('_attribute'); // this is the name of relation field to select records
         $_type        = post('_type'); // 'query' or 'query:append'
-        $limit        = intVal($this->formField->config['limit'] ?? self::DEFAULT_SEARCH_RECORDS_LIMIT); // 20 records is default limit
         $page         = intVal(post('page', 1)); // page parameter for load-more requests
 
-        $relationModel = $this->getRelationModel();
+        list($model, $attribute) = $this->resolveModelAttribute($relationAttr);
+        $relationModel = $model->makeRelation($attribute);
         $query = $relationModel->newQuery();
+        $sqlSelect = $this->formField->config->select ?? null;
+
+        // Now we need extract our params [limit, nameFrom, select] from $this->parentForm
+        // because $this->sqlSelect, $this->nameFrom, $this->formField provides
+        // incorrect values in case when there is more than 2 fields of the same type on the form
+        $formFieldConfig = $this->findFieldConfig($this->parentForm, $relationAttr, 'relation-dynamic-dropdown');
+
+        $limit       = intVal($formFieldConfig['limit'] ?? self::DEFAULT_SEARCH_RECORDS_LIMIT); // 20 records is default limit
+        $nameFrom    = $formFieldConfig['nameFrom'] ?? $relationModel->getKeyName();
+        $sqlSelect   = $formFieldConfig['select'] ?? null;
+        $sqlOrder    = $formFieldConfig['order'] ?? null;
+        $scopeMethod = $formFieldConfig['scope'] ?? null;
 
         // Order query by the configured option.
-        if ($this->order) {
+        if ($sqlOrder) {
             // Using "raw" to allow authors to use a string to define the order clause.
-            $query->orderByRaw($this->order);
+            $query->orderByRaw($sqlOrder);
         }
-
-        if ($scopeMethod = $this->scope) {
+        if ($scopeMethod) {
+            if (!method_exists($relationModel, 'scope'.ucfirst($scopeMethod))) {
+                throw new ApplicationException(Lang::get('backend::lang.field.options_method_not_exists', [
+                    'model' => get_class($relationModel), 
+                    'method' => 'scope'.ucfirst($scopeMethod), 
+                    'field' => $relationAttr
+                ]));
+            }
             $query->$scopeMethod($relationModel);
         }
 
         $records = [];
-        if ($this->sqlSelect) {
-            $nameFrom = 'selection';
+        if ($sqlSelect) {
+            $nameFrom     = 'selection';
             $selectColumn = $relationModel->getKeyName();
-            $searchFields = [$relationModel->getKeyName(), DB::raw($this->sqlSelect)];
+            $searchFields = [$relationModel->getKeyName(), DB::raw($sqlSelect)];
             $records = $query->searchWhere($searchQuery, $searchFields)
                              ->offset(($page-1)*$limit)
                              ->take($limit)
-                             ->select($selectColumn, DB::raw($this->sqlSelect . ' AS ' . $nameFrom))->get();
+                             ->select($selectColumn, DB::raw($sqlSelect . ' AS ' . $nameFrom))->get();
         }
         else {
-            $nameFrom = $this->nameFrom;
             $searchFields = [$relationModel->getKeyName(), $nameFrom];
             $query->searchWhere($searchQuery, $searchFields)->offset(($page-1)*$limit)->take($limit);
             $records = $query->getQuery()->get();
@@ -199,5 +223,24 @@ class RelationDynamicDropdown extends Relation
         if($records->count() == $limit)  $return['pagination'] = [ 'more' => true ];
 
         return $return;
+    }
+
+    /**
+     * Find field config by recursive traversal of $this->parentForm object
+     *
+     * @param $data
+     * @param $searchFieldName
+     * @param $searchFieldName
+     */
+    private function findFieldConfig($data, $searchFieldName, $searchFiledType) {
+        if(isset($data->fields) && isset($data->fields[$searchFieldName]['type'])
+            && $data->fields[$searchFieldName]['type'] == $searchFiledType ) {
+                return $data->fields[$searchFieldName];
+        }
+        foreach($data as $record) {
+            $res = $this->findFieldConfig($record, $searchFieldName, $searchFiledType);
+            if($res) return $res;
+        }
+        return false;
     }
 }
