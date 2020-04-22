@@ -45,6 +45,7 @@ user:
     type: relation-dynamic-dropdown
     select: CONCAT(first_name, ' ', last_name, ' - ', email)
     limit: 10
+    order: first_name # optional parameter
     scope: withAuthorRoles # optional parameter
     attributes:
         data-minimum-input-length: 2
@@ -58,6 +59,7 @@ Option | Description
 **nameFrom** | Field name to search and display in dropdown. Option inherited from Relation widget.
 **select** | Dynamically generated field with raw SQL capabilities like SQL functions. The most useful is function: CONCAT(field1, ' ', field2, ...).
 **limit** | Count of records to be displayed in search results. Default: 20.
+**order** | Field name to sort search results. Optional parameter.
 **scope** | This is an optional parameter to search results for dropdown values based on scope filter defined in relation model.
 **attributes.data-minimum-input-length** | Count of records to load and display with dynamic dropdown. Default: 20.
 **attributes.data-ajax--delay** | Delay between consequtive search ajax requests in milliseconds. Default: 300.

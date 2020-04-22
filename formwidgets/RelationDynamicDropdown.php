@@ -171,7 +171,8 @@ class RelationDynamicDropdown extends Relation
         // Now we need extract our params [limit, nameFrom, select] from $this->parentForm
         // because $this->sqlSelect, $this->nameFrom, $this->formField provides
         // incorrect values in case when there is more than 2 fields of the same type on the form
-        $formFieldConfig = $this->findFieldConfig($this->parentForm, $relationAttr, 'relation-dynamic-dropdown');
+        $parentFormConfig = json_decode(json_encode($this->parentForm), true);
+        $formFieldConfig  = $this->findFieldConfig($parentFormConfig, $relationAttr, 'relation-dynamic-dropdown');
 
         $limit       = intVal($formFieldConfig['limit'] ?? self::DEFAULT_SEARCH_RECORDS_LIMIT); // 20 records is default limit
         $nameFrom    = $formFieldConfig['nameFrom'] ?? $relationModel->getKeyName();
@@ -233,13 +234,22 @@ class RelationDynamicDropdown extends Relation
      * @param $searchFieldName
      */
     private function findFieldConfig($data, $searchFieldName, $searchFiledType) {
-        if(isset($data->fields) && isset($data->fields[$searchFieldName]['type'])
-            && $data->fields[$searchFieldName]['type'] == $searchFiledType ) {
-                return $data->fields[$searchFieldName];
+        if(isset($data['fields']) && isset($data['fields'])) {
+            foreach($data['fields'] as $fieldName => $fieldConfig) {
+                if(isset($fieldConfig['type']) && $fieldConfig['type'] === $searchFiledType) {
+                    if($sanitizedFieldName = explode('@', $fieldName)[0] ?? null) {
+                        if($searchFieldName === $sanitizedFieldName) {
+                            return $data['fields'][$fieldName];
+                        }
+                    }
+                }
+            }
         }
-        foreach($data as $record) {
-            $res = $this->findFieldConfig($record, $searchFieldName, $searchFiledType);
-            if($res) return $res;
+        if(is_array($data)) {
+            foreach($data as $record) {
+                $res = $this->findFieldConfig($record, $searchFieldName, $searchFiledType);
+                if($res) return $res;
+            }
         }
         return false;
     }
