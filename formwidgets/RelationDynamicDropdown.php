@@ -71,7 +71,7 @@ class RelationDynamicDropdown extends Relation
     {
         list($model, $attribute) = $this->resolveModelAttribute($this->valueFrom);
         $relationType   = $model->getRelationType($attribute);
-        $attributeValue = isset($model->{$attribute}) ? $model->{$attribute}->getKey() : null;
+        $attributeValue = $this->formField->value;
         $valueFrom      = $this->valueFrom;
 
         // If relation widget has data-handler attribute, then render widget without quering database for options
