@@ -67,11 +67,12 @@ class RelationDynamicDropdown extends Relation
     {
         list($model, $attribute) = $this->resolveModelAttribute($this->valueFrom);
         $relationType = $model->getRelationType($attribute);
+        $attributeValue = isset($model->{$attribute}) ? $model->{$attribute}->getKey() : null;
 
         // If relation widget has data-handler attribute, then render widget without quering database for options
         if (in_array($relationType, ['belongsTo', 'hasOne'])) {
             $formField = $this->formField;
-            return $this->renderFormField = RelationBase::noConstraints(function () use($formField) {
+            return $this->renderFormField = RelationBase::noConstraints(function () use($formField, $model, $attribute, $relationType, $attributeValue) {
                 $field = clone $formField;
 
                 // CUSTOMIZATION: automatic data-handler and data-attributes configuration
@@ -82,15 +83,11 @@ class RelationDynamicDropdown extends Relation
 
                 $relationObject = $this->getRelationObject();
                 $query = $relationObject->newQuery();
-
-                list($model, $attribute) = $this->resolveModelAttribute($this->valueFrom);
-                $relationType = $model->getRelationType($attribute);
                 $relationModel = $model->makeRelation($attribute);
-
 
                 // CUSTOMIZATION: reduce displayed dropdown options to selected value only
                 // This allows us to avoid thousands of records flooding HTML DOM of form page 
-                $query->where($relationModel->getKeyName(), $model->getKey()); 
+                $query->where($relationModel->getKeyName(), $attributeValue);
 
                 // Order query by the configured option.
                 if ($this->order) {
