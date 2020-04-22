@@ -1,3 +1,4 @@
 1.0.0: First version of Relation Dynamic Dropdown Form Widget.
 1.0.1: Fixed bug with display of selected item on form rendering
 1.0.2: Fixed bug with display of multiple instances of widget of the same form
+1.0.3: Fixed bug with relations as field in repeater widget and implemented support of emptyOption parameter

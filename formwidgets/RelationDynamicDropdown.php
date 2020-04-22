@@ -179,6 +179,7 @@ class RelationDynamicDropdown extends Relation
         $sqlSelect   = $formFieldConfig['select'] ?? null;
         $sqlOrder    = $formFieldConfig['order'] ?? null;
         $scopeMethod = $formFieldConfig['scope'] ?? null;
+        $emptyOption = $formFieldConfig['emptyOption'] ?? null;
 
         // Order query by the configured option.
         if ($sqlOrder) {
@@ -213,6 +214,10 @@ class RelationDynamicDropdown extends Relation
         }
 
         $results = [];
+        // Always display an empty option in autocomplete dropdown on the first page of results
+        if(isset($emptyOption) && $page === 1) {
+            $results[] = [ 'id' => '', 'text' => $emptyOption ];
+        }
         foreach ($records as $record) {
             $results[] = [
                 'id'   => $record->{$relationModel->getKeyName()},
